@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.io as pio
 
 st.set_page_config(
     page_title="Dashboard de Salários na Área de Dados",
@@ -8,11 +9,33 @@ st.set_page_config(
     layout="wide",
 )
 
-df = pd.read_csv("https://raw.githubusercontent.com/vqrca/dashboard_salarios_dados/refs/heads/main/dados-imersao-final.csv")
+# Carrega dados: tenta arquivo local (com e sem acento) e depois tenta URL pública (fallback)
+local_paths = ["dados-imersão-final.csv", "dados-imersao-final.csv"]
+df = None
+for p in local_paths:
+    try:
+        df = pd.read_csv(p)
+        break
+    except FileNotFoundError:
+        pass
+
+if df is None:
+    try:
+        df = pd.read_csv("https://raw.githubusercontent.com/vqrca/dashboard_salarios_dados/main/dados-imersao-final.csv")
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        st.stop()
 
 
 # --- Barra Lateral (Filtros) ---
 st.sidebar.header("🔍 Filtros")
+
+# Toggle para modo compatível caso o navegador tenha problemas com renderização interativa
+use_static_plots = st.sidebar.checkbox(
+    "Modo compatível: gráficos estáticos (evita erros no navegador)",
+    value=False,
+    help="Renderiza gráficos como imagens geradas no servidor (usa kaleido) em vez de gráficos interativos."
+)
 
 # Filtro de Ano
 anos_disponiveis = sorted(df['ano'].unique())
@@ -79,7 +102,14 @@ with col_graf1:
             labels={'usd': 'Média salarial anual (USD)', 'cargo': ''}
         )
         grafico_cargos.update_layout(title_x=0.1, yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(grafico_cargos, use_container_width=True)
+        if use_static_plots:
+            try:
+                img = pio.to_image(grafico_cargos, format='png', width=800, height=420, scale=2)
+                st.image(img, use_column_width=True)
+            except Exception as e:
+                st.error(f"Não foi possível gerar imagem do gráfico: {e}")
+        else:
+            st.plotly_chart(grafico_cargos, use_container_width=True)
     else:
         st.warning("Nenhum dado para exibir no gráfico de cargos.")
 
@@ -92,8 +122,15 @@ with col_graf2:
             title="Distribuição de salários anuais",
             labels={'usd': 'Faixa salarial (USD)', 'count': ''}
         )
-        grafico_hist.update_layout(title_x=0.1)
-        st.plotly_chart(grafico_hist, use_container_width=True)
+        grafico_hist.update_layout(title_x=0.1, height=420)
+        if use_static_plots:
+            try:
+                img = pio.to_image(grafico_hist, format='png', width=800, height=420, scale=2)
+                st.image(img, use_column_width=True)
+            except Exception as e:
+                st.error(f"Não foi possível gerar imagem do gráfico: {e}")
+        else:
+            st.plotly_chart(grafico_hist, use_container_width=True)
     else:
         st.warning("Nenhum dado para exibir no gráfico de distribuição.")
 
@@ -111,23 +148,40 @@ with col_graf3:
             hole=0.5
         )
         grafico_remoto.update_traces(textinfo='percent+label')
-        grafico_remoto.update_layout(title_x=0.1)
-        st.plotly_chart(grafico_remoto, use_container_width=True)
+        grafico_remoto.update_layout(title_x=0.1, height=360)
+        if use_static_plots:
+            try:
+                img = pio.to_image(grafico_remoto, format='png', width=720, height=360, scale=2)
+                st.image(img, use_column_width=True)
+            except Exception as e:
+                st.error(f"Não foi possível gerar imagem do gráfico: {e}")
+        else:
+            st.plotly_chart(grafico_remoto, use_container_width=True)
     else:
         st.warning("Nenhum dado para exibir no gráfico dos tipos de trabalho.")
 
 with col_graf4:
     if not df_filtrado.empty:
         df_ds = df_filtrado[df_filtrado['cargo'] == 'Data Scientist']
-        media_ds_pais = df_ds.groupby('residencia_iso3')['usd'].mean().reset_index()
-        grafico_paises = px.choropleth(media_ds_pais,
-            locations='residencia_iso3',
-            color='usd',
-            color_continuous_scale='rdylgn',
-            title='Salário médio de Cientista de Dados por país',
-            labels={'usd': 'Salário médio (USD)', 'residencia_iso3': 'País'})
-        grafico_paises.update_layout(title_x=0.1)
-        st.plotly_chart(grafico_paises, use_container_width=True)
+        if not df_ds.empty:
+            media_ds_pais = df_ds.groupby('residencia_iso3')['usd'].mean().reset_index()
+            grafico_paises = px.choropleth(media_ds_pais,
+                locations='residencia_iso3',
+                color='usd',
+                color_continuous_scale='RdYlGn',
+                title='Salário médio de Cientista de Dados por país',
+                labels={'usd': 'Salário médio (USD)', 'residencia_iso3': 'País'})
+            grafico_paises.update_layout(title_x=0.1, height=480)
+            if use_static_plots:
+                try:
+                    img = pio.to_image(grafico_paises, format='png', width=900, height=480, scale=2)
+                    st.image(img, use_column_width=True)
+                except Exception as e:
+                    st.error(f"Não foi possível gerar imagem do mapa: {e}")
+            else:
+                st.plotly_chart(grafico_paises, use_container_width=True)
+        else:
+            st.warning("Nenhum dado de 'Data Scientist' para exibir no mapa de países.")
     else:
         st.warning("Nenhum dado para exibir no gráfico de países.")
 
