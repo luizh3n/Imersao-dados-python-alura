@@ -31,11 +31,14 @@ if df is None:
 st.sidebar.header("🔍 Filtros")
 
 # Toggle para modo compatível caso o navegador tenha problemas com renderização interativa
+# FORÇADO por padrão (melhora compatibilidade em navegadores que apresentam erros de DOM)
 use_static_plots = st.sidebar.checkbox(
     "Modo compatível: gráficos estáticos (evita erros no navegador)",
-    value=False,
+    value=True,
     help="Renderiza gráficos como imagens geradas no servidor (usa kaleido) em vez de gráficos interativos."
 )
+if use_static_plots:
+    st.sidebar.info("Modo compatível ativo: gráficos serão renderizados como imagens para maior estabilidade.")
 
 # Filtro de Ano
 anos_disponiveis = sorted(df['ano'].unique())
